@@ -1,10 +1,261 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>SOC Dashboard</title>
+<meta charset="UTF-8">
+<title>AI-Driven SOC Resilience Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+  margin: 0;
+  background: #0b1220;
+  font-family: Arial, sans-serif;
+  color: white;
+}
+
+h1 { margin: 20px; }
+
+.container { padding: 20px; }
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+  margin-bottom: 25px;
+}
+
+.card {
+  background: linear-gradient(135deg, #101a33, #0c1326);
+  padding: 16px;
+  border-radius: 14px;
+}
+
+.card span {
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.green { color: #22c55e; }
+.yellow { color: #facc15; }
+.red { color: #ef4444; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr;
+  gap: 20px;
+}
+
+canvas {
+  max-height: 220px !important;
+}
+
+/* ---------- Buttons ---------- */
+.attack-btn {
+  width: 100%;
+  padding: 10px;
+  margin: 8px 0;
+  border-radius: 22px;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.normal { background:#334155; color:white; }
+.portscan { background:#fbbf24; color:black; }
+.bruteforce { background:#fb923c; color:black; }
+.ddos { background:#ef4444; color:white; }
+.mixed { background:#8b5cf6; color:white; }
+
+/* ---------- Table ---------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+th, td {
+  padding: 9px;
+  border-bottom: 1px solid #1f2a44;
+  text-align: center;
+}
+</style>
 </head>
+
 <body>
-  <h1>AI-Based SOC Dashboard</h1>
-  <p>Live traffic and alerts will appear here.</p>
+<h1>AI-Driven SOC Resilience Monitor</h1>
+
+<div class="container">
+
+<!-- METRICS -->
+<div class="metrics">
+  <div class="card">Normal Traffic<br><span id="normalCount">0</span></div>
+  <div class="card">Attack Traffic<br><span id="attackCount">0</span></div>
+  <div class="card">Alert Flags<br><span id="alertCount">0</span></div>
+  <div class="card">Resilience Score<br>
+    <span id="resilienceScore" class="yellow">50%</span>
+  </div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="grid">
+
+  <!-- GRAPH -->
+  <div class="card">
+    <h3>Traffic Analysis Timeline</h3>
+    <canvas id="trafficChart"></canvas>
+  </div>
+
+  <!-- ATTACK SIMULATOR -->
+  <div class="card">
+    <h3>Attack Simulator</h3>
+    <button class="attack-btn normal" onclick="setMode('normal')">Normal Traffic</button>
+    <button class="attack-btn portscan" onclick="setMode('portscan')">Simulate Port Scan</button>
+    <button class="attack-btn bruteforce" onclick="setMode('bruteforce')">Simulate Brute Force</button>
+    <button class="attack-btn ddos" onclick="setMode('ddos')">Simulate DDoS Attack</button>
+    <button class="attack-btn mixed" onclick="setMixed()">Mixed Traffic</button>
+  </div>
+
+</div>
+
+<!-- TABLE -->
+<div class="card">
+  <h3>Real-Time Traffic Feed</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Source IP</th>
+        <th>Port</th>
+        <th>Rate</th>
+        <th>Type</th>
+        <th>Alert</th>
+      </tr>
+    </thead>
+    <tbody id="feed"></tbody>
+  </table>
+</div>
+
+</div>
+
+<script>
+let normalCount = 0;
+let attackCount = 0;
+let alertCount = 0;
+let currentMode = "normal";
+
+/* 🔵 EFFECTIVENESS-BASED RESILIENCE */
+let resilience = 50;   // starts neutral
+
+let labels = [], normalData = [], attackData = [];
+
+/* ---------- CHART ---------- */
+const chart = new Chart(document.getElementById("trafficChart"), {
+  type: "line",
+  data: {
+    labels,
+    datasets: [
+      { label: "Normal", data: normalData, borderColor: "#38bdf8", tension: 0.3 },
+      { label: "Attack", data: attackData, borderColor: "#ef4444", tension: 0.3 }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { labels: { color: "white" } } },
+    scales: {
+      x: { ticks: { color: "#9ca3af" } },
+      y: { ticks: { color: "#9ca3af" } }
+    }
+  }
+});
+
+/* ---------- MODE ---------- */
+function setMode(mode) {
+  currentMode = mode;
+  fetch(`http://127.0.0.1:5000/mode/${mode}`, { method: "POST" });
+}
+
+function setMixed() {
+  currentMode = "mixed";
+  fetch("http://127.0.0.1:5000/mode/mixed", { method: "POST" });
+}
+
+/* ---------- ✅ FINAL RESILIENCE LOGIC ---------- */
+function updateResilience(event) {
+
+  // Attack occurred
+  if (event.type !== "normal") {
+    if (event.alert) {
+      resilience += 3;      // detected → good SOC
+    } else {
+      resilience -= 5;      // missed → bad SOC
+    }
+  } 
+  // No attack → small natural decay (fatigue / idle degradation)
+  else {
+    resilience -= 1;
+  }
+
+  // Clamp 0–100
+  resilience = Math.max(0, Math.min(100, resilience));
+
+  const el = document.getElementById("resilienceScore");
+  el.textContent = resilience + "%";
+
+  if (resilience > 70) el.className = "green";
+  else if (resilience > 40) el.className = "yellow";
+  else el.className = "red";
+}
+
+/* ---------- FETCH EVENTS ---------- */
+async function fetchEvent() {
+  const res = await fetch("http://127.0.0.1:5000/event");
+  const e = await res.json();
+
+  if (labels.length > 15) {
+    labels.shift(); normalData.shift(); attackData.shift();
+  }
+
+  labels.push(e.time);
+
+  if (e.type === "normal") {
+    normalData.push(e.packet_rate);
+    attackData.push(null);
+    normalCount++;
+  } else {
+    attackData.push(e.packet_rate);
+    normalData.push(null);
+    attackCount++;
+  }
+
+  if (e.alert) alertCount++;
+
+  document.getElementById("normalCount").textContent = normalCount;
+  document.getElementById("attackCount").textContent = attackCount;
+  document.getElementById("alertCount").textContent = alertCount;
+
+  updateResilience(e);
+
+  const row = `
+    <tr>
+      <td>${e.time}</td>
+      <td>${e.src_ip}</td>
+      <td>${e.dst_port}</td>
+      <td>${e.packet_rate}</td>
+      <td>${e.type}</td>
+      <td>${e.alert ? "YES" : "NO"}</td>
+    </tr>
+  `;
+  document.getElementById("feed").insertAdjacentHTML("afterbegin", row);
+
+  chart.update();
+}
+
+/* Initial render */
+document.getElementById("resilienceScore").textContent = resilience + "%";
+
+/* Live stream */
+setInterval(fetchEvent, 1000);
+</script>
+
 </body>
 </html>
